@@ -19,12 +19,12 @@ def build_tools(store, regulation):
     def minhas_reservas(tool_context: ToolContext) -> dict:
         """Lista exclusivamente as reservas ativas do apartamento autenticado."""
         _, apartment = identity(tool_context)
-        return {"reservas": store.reservations(apartment)}
+        return {"apartamento": apartment, "reservas": store.reservations(apartment)}
 
     def meus_visitantes(tool_context: ToolContext) -> dict:
         """Lista exclusivamente os visitantes do apartamento autenticado."""
         _, apartment = identity(tool_context)
-        return {"visitantes": store.visitors(apartment)}
+        return {"apartamento": apartment, "visitantes": store.visitors(apartment)}
 
     def consultar_disponibilidade(area: str, data: str) -> dict:
         """Informa apenas se uma área está livre na data AAAA-MM-DD, sem dados de moradores."""

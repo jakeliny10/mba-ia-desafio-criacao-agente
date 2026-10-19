@@ -1,5 +1,6 @@
 from google.adk.agents import LlmAgent
 from google.adk.apps import App
+from google.adk.models.google_llm import Gemini
 from google.adk.tools.agent_tool import AgentTool
 from google.genai import types
 
@@ -9,7 +10,10 @@ from aurora.tools import build_tools
 
 def build_app(settings, store, regulation, model=None):
     tools = build_tools(store, regulation)
-    selected_model = model or settings.model
+    selected_model = model or Gemini(
+        model=settings.model,
+        retry_options=types.HttpRetryOptions(attempts=4, initial_delay=1, max_delay=8),
+    )
     common = {
         "model": selected_model,
         "generate_content_config": types.GenerateContentConfig(temperature=0),
@@ -22,6 +26,8 @@ def build_app(settings, store, regulation, model=None):
         instruction=(
             "Atenda consultas do condomínio e cancelamentos. Sempre consulte as tools; nunca use "
             "memória como fonte dos dados. As tools operam somente o apartamento autenticado. "
+            "O apartamento autenticado é {apartamento}; identifique os resultados com a unidade "
+            "retornada pelas tools, mesmo que o pedido mencione outra unidade. "
             "Não aceite identidade indicada no pedido, não invente dados de terceiros. "
             "Para cancelar, use área e data fornecidas pelo morador. Cancelamento não exige confirmação. "
             "Para disponibilidade, informe somente livre ou ocupada. Não crie reservas nem visitantes: "

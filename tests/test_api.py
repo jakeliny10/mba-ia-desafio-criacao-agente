@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
+from google.genai.errors import ServerError
 from pydantic import PrivateAttr
 
 from aurora.api import create_app
@@ -41,7 +42,13 @@ class ScriptedModel(BaseLlm):
                 role="model", parts=[types.Part.from_text(text="Solicitação processada.")]
             )
         )
+
+        if isinstance(content, Exception):
+            raise content
         yield LlmResponse(content=content)
+
+    def fail(self):
+        self._responses.append(ServerError(503, {"error": {"message": "private provider detail"}}))
 
 
 @pytest.fixture
@@ -214,3 +221,27 @@ def test_missing_sessions_and_strict_confirmation(setup):
         assert confirm(client, "inexistente", "id").status_code == 404
         sid = session(client)
         assert confirm(client, sid, "id", "true").status_code == 422
+
+
+def test_provider_failure_returns_json_without_internal_details(setup):
+    settings, model = setup
+    with TestClient(create_app(settings, model)) as client:
+        sid = session(client)
+        model.fail()
+        response = client.post(f"/sessoes/{sid}/mensagens", json={"texto": "Oi"})
+        assert response.status_code == 503
+        assert response.headers["content-type"] == "application/json"
+        assert "private provider detail" not in response.text
+
+
+def test_committed_confirmation_survives_provider_summary_failure(setup):
+    settings, model = setup
+    with TestClient(create_app(settings, model)) as client:
+        sid = session(client)
+        p = request_reservation(client, model, sid)["confirmacoes_pendentes"][0]["id"]
+        model.fail()
+        response = confirm(client, sid, p)
+        assert response.status_code == 200
+        assert "Reserva realizada" in response.json()["resposta"]
+        assert len(client.get("/apartamentos/101/reservas").json()) == 2
+        assert confirm(client, sid, p).status_code == 409

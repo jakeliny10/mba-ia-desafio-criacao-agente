@@ -2,7 +2,9 @@ import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from google.genai import types
+from google.genai.errors import APIError
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from aurora.config import APP_NAME, USER_ID, Settings
@@ -37,6 +39,14 @@ def create_app(settings=None, model=None):
             await app.state.runtime.close()
 
     app = FastAPI(title="Residencial Aurora", lifespan=lifespan)
+
+    @app.exception_handler(APIError)
+    async def model_unavailable(request, exc):
+        # Provider errors may include request metadata; do not expose them to clients.
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Gemini indisponível. Tente novamente em alguns instantes."},
+        )
 
     async def require_session(session_id):
         runtime = app.state.runtime

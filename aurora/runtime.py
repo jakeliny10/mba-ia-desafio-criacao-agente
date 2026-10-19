@@ -5,6 +5,7 @@ from collections import defaultdict
 from google.adk.runners import Runner
 from google.adk.sessions import DatabaseSessionService
 from google.genai import types
+from google.genai.errors import APIError
 
 from aurora.agents import build_app
 from aurora.config import APP_NAME, USER_ID
@@ -84,7 +85,24 @@ class Runtime:
                 )
             ],
         )
-        result = await self.run(session_id, content)
+        try:
+            result = await self.run(session_id, content)
+        except APIError:
+            # A failed natural-language summary must not hide an already committed
+            # confirmation or turn the losing reservation into a server error.
+            outcome = self.store.operation_result(session_id, record["chamada"])
+            if outcome is None:
+                raise
+            logger.warning(
+                "Gemini indisponível após confirmação; retornando o resultado persistido."
+            )
+            messages = {
+                "reservada": f"Reserva realizada. Código: {outcome.get('codigo', '')}.",
+                "autorizado": f"Visita de {outcome.get('nome', '')} autorizada para {outcome.get('data', '')}.",
+                "negada": "Confirmação negada. Nenhuma alteração realizada.",
+                "indisponivel": "A área está ocupada nesta data. Nenhuma reserva foi criada.",
+            }
+            result = self.response(session_id, messages[outcome["status"]])
         # Detect the silent failure described in the assignment instead of reporting success.
         if self.store.operation_result(session_id, record["chamada"]) is None:
             raise RuntimeError("O ADK não retomou a tool da confirmação.")

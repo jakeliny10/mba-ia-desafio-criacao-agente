@@ -83,6 +83,10 @@ O modelo padrão consta na [documentação oficial de modelos Gemini](https://ai
 Confira sua disponibilidade e os [limites ativos do projeto](https://aistudio.google.com/usage?tab=rate-limit)
 no AI Studio. Os limites dependem da conta; o fluxo envolve dezenas de chamadas.
 A chave do avaliador é configurada localmente, sem alterar o código.
+O cliente realiza até quatro tentativas para falhas temporárias do provedor. Se elas
+se esgotarem, a API retorna um erro JSON com status 503. Quando a confirmação já
+foi executada e só a redação da resposta falhar, a API retorna o resultado gravado
+com status 200, sem executar novamente a ação.
 
 Para restaurar os dados iniciais, **com a API parada**:
 
